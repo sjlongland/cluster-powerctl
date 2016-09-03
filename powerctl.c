@@ -95,7 +95,7 @@ static volatile uint8_t led_timeout = 0;
  */
 #define TEMP_MIN	(270 << 6)	/*!< ~20°C, approx ADC reading */
 #define TEMP_MAX	(300 << 6)	/*!< ~30°C, approx ADC reading */
-#define FAN_PWM_MIN	(80)		/*!< Minimum PWM value */
+#define FAN_PWM_MIN	(88)		/*!< Minimum PWM value */
 #define FAN_PWM_MAX	(255)		/*!< Maximum PWM value */
 /*! Fan kick-start timeout */
 static volatile uint8_t fan_timeout = 0;
