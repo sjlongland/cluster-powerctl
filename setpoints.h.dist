@@ -1,0 +1,72 @@
+#ifndef _SETPOINTS_H
+#define _SETPOINTS_H
+/*!
+ * Personal Cloud power controller firmware
+ * (C) 2016 Stuart Longland
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation; either version 2 of the License, or (at your
+ * option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA.
+ */
+
+/*!
+ * How many Timer1 ticks between ADC readings?
+ */
+#define ADC_TIMEOUT 	(1200)
+
+/*!
+ * How long to wait before switching charging sources?
+ */
+#define SRC_TIMEOUT	(15)
+
+/*!
+ * How long before we change LED states?
+ */
+#define LED_TIMEOUT	(150)
+
+/*
+ * Temperature ranges and fan PWM settings
+ */
+#define TEMP_MIN	(270 << 6)	/*!< ~20°C, approx ADC reading */
+#define TEMP_MAX	(300 << 6)	/*!< ~30°C, approx ADC reading */
+#define FAN_PWM_MIN	(88)		/*!< Minimum PWM value */
+#define FAN_PWM_MAX	(255)		/*!< Maximum PWM value */
+
+/*! Fan kick-start timeout */
+#define FAN_TIMEOUT	(5)
+
+/*
+ * ADC Voltage divider settings
+ */
+#define VDIV_R1		(1500ULL)	/*!< R1 = 1.5kOhm */
+#define VDIV_R2		(100ULL)	/*!< R2 = 100 Ohm */
+/*
+ * ADC settings
+ */
+#define ADC_REF		(1100ULL)	/*!< AREF = 1.1mV */
+#define ADC_MAX		(65535ULL)	/*!< ADLAR = 1 */
+
+/*!
+ * "Critical" battery voltage.  This is considered a serious condition.
+ */
+#define VBATT_CRIT_MV	(11800)
+/*!
+ * "Low" battery voltage.  Indication that we should turn a charger on.
+ */
+#define VBATT_LOW_MV	(12000)
+/*!
+ * "High" battery voltage.  Indication we should turn the charger off.
+ */
+#define VBATT_HIGH_MV	(13500)
+
+#endif

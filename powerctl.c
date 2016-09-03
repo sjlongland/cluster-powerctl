@@ -9,6 +9,7 @@
 #endif
 
 #include "board.h"
+#include "setpoints.h"
 
 /*! ADMUX setting for selecting 1.1V reference */
 #define ADC_REF_1V1	(2 << REFS0)
@@ -58,10 +59,6 @@ static volatile uint16_t adc_temp = 0;
  * How long before we next take a reading?
  */
 static volatile uint16_t adc_timeout = 0;
-/*!
- * How many Timer1 ticks between ADC readings?
- */
-#define ADC_TIMEOUT (1200)
 
 /*!
  * State of the battery.
@@ -82,35 +79,14 @@ static volatile uint8_t batt_state_counter = 0;
  * How long before we can consider switching sources.
  */
 static volatile uint8_t src_timeout = 0;
-#define SRC_TIMEOUT	(15)	/*!< How long to wait before switching */
 
 /*!
  * How long before we change LED states?
  */
 static volatile uint8_t led_timeout = 0;
-#define LED_TIMEOUT	(150)
 
-/*
- * Temperature ranges and fan PWM settings
- */
-#define TEMP_MIN	(270 << 6)	/*!< ~20°C, approx ADC reading */
-#define TEMP_MAX	(300 << 6)	/*!< ~30°C, approx ADC reading */
-#define FAN_PWM_MIN	(88)		/*!< Minimum PWM value */
-#define FAN_PWM_MAX	(255)		/*!< Maximum PWM value */
 /*! Fan kick-start timeout */
 static volatile uint8_t fan_timeout = 0;
-#define FAN_TIMEOUT	(5)
-
-/*
- * ADC Voltage divider settings
- */
-#define VDIV_R1		(1500ULL)	/*!< R1 = 1.5kOhm */
-#define VDIV_R2		(100ULL)	/*!< R2 = 100 Ohm */
-/*
- * ADC settings
- */
-#define ADC_REF		(1100ULL)	/*!< AREF = 1.1mV */
-#define ADC_MAX		(65535ULL)	/*!< ADLAR = 1 */
 
 /*!
  * Macro for computing ADC measurements.  This assumes the input to the
@@ -130,15 +106,15 @@ static volatile uint8_t fan_timeout = 0;
 /*!
  * "Critical" battery voltage.  This is considered a serious condition.
  */
-#define VBATT_CRIT	ADC_READ(11800)
+#define VBATT_CRIT	ADC_READ(VBATT_CRIT_MV)
 /*!
  * "Low" battery voltage.  Indication that we should turn a charger on.
  */
-#define VBATT_LOW	ADC_READ(12000)
+#define VBATT_LOW	ADC_READ(VBATT_LOW_MV)
 /*!
  * "High" battery voltage.  Indication we should turn the charger off.
  */
-#define VBATT_HIGH	ADC_READ(13500)
+#define VBATT_HIGH	ADC_READ(VBATT_HIGH_MV)
 
 /* Debug messages */
 #ifdef DEBUG

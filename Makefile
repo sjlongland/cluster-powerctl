@@ -43,8 +43,16 @@ clean:
 	$(SIZE) -d $@
 
 powerctl.elf: powerctl.o uart.o
-powerctl.o: board.h
+powerctl.o: board.h setpoints.h
 uart.o: uartcfg.h uart.h
+setpoints.h: setpoints.h.dist
+	@if [ -f $@ ]; then \
+		echo "Existing $@ found.  Please compare this file with"; \
+		echo "$^ to check for any new definitions and merge as"; \
+		echo "required."; \
+		exit 1; \
+	fi
+	cp $^ $@
 
 %.pgm: %.ihex
 	avrdude $(PROG_ARGS) -p $(PROG_DEV) -U flash:w:$^:i
