@@ -93,10 +93,13 @@ static volatile uint8_t led_timeout = 0;
 /*
  * Temperature ranges and fan PWM settings
  */
-#define TEMP_MIN	(275 << 6)	/*!< ~20°C, approx ADC reading */
-#define TEMP_MAX	(295 << 6)	/*!< ~30°C, approx ADC reading */
-#define FAN_PWM_MIN	(128)		/*!< Minimum PWM value */
+#define TEMP_MIN	(270 << 6)	/*!< ~20°C, approx ADC reading */
+#define TEMP_MAX	(300 << 6)	/*!< ~30°C, approx ADC reading */
+#define FAN_PWM_MIN	(80)		/*!< Minimum PWM value */
 #define FAN_PWM_MAX	(255)		/*!< Maximum PWM value */
+/*! Fan kick-start timeout */
+static volatile uint8_t fan_timeout = 0;
+#define FAN_TIMEOUT	(5)
 
 /*
  * ADC Voltage divider settings
@@ -190,8 +193,7 @@ int main(void) {
 	/* Configure Timer0: Fan PWM */
 	TCCR0A = (1 << COM0A1) | (1 << WGM01) | (1 << WGM00);
 	TCCR0B = (1 << CS00);
-	/* Half-speed fan until we know what to do */
-	OCR0A = 128;
+	OCR0A = 0;
 
 	/*
 	 * Configure Timer1: 1.2kHz System tick timer
@@ -438,15 +440,25 @@ int main(void) {
 			}
 
 			/* Fan control */
-			if (adc_temp > TEMP_MAX) {
+			if (fan_timeout) {
+				/* Kick-start mode */
+				OCR0A = FAN_PWM_MAX;
+				fan_timeout--;
+			} else if (adc_temp > TEMP_MAX) {
 				/* We're at the maximum temperature, FULL SPEED! */
 				OCR0A = FAN_PWM_MAX;
 			} else if (adc_temp > TEMP_MIN) {
 				/* Scale fan speed linearly with temperature */
-				OCR0A = (((adc_temp - TEMP_MIN)
-							* (FAN_PWM_MIN - FAN_PWM_MAX))
-						/ (TEMP_MAX - TEMP_MIN))
-					+ FAN_PWM_MIN;
+				uint8_t pwm = (((adc_temp - TEMP_MIN)
+							* FAN_PWM_MAX)
+						/ (TEMP_MAX - TEMP_MIN));
+				if (OCR0A < FAN_PWM_MIN)
+					/* Enter kick-start mode */
+					fan_timeout = FAN_TIMEOUT;
+				else if (pwm > FAN_PWM_MIN)
+					OCR0A = pwm;
+				else
+					OCR0A = FAN_PWM_MIN;
 			} else {
 				/* Turn fans off completely. */
 				OCR0A = 0;
