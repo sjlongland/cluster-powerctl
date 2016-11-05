@@ -27,7 +27,7 @@
 /*!
  * How long to wait before switching charging sources?
  */
-#define SRC_TIMEOUT	(15)
+#define SRC_TIMEOUT	(30)
 
 /*!
  * How long to wait at high battery before shutdown?
@@ -48,7 +48,7 @@
 #define FAN_PWM_MAX	(255)		/*!< Maximum PWM value */
 
 /*! Fan kick-start timeout */
-#define FAN_TIMEOUT	(5)
+#define FAN_TIMEOUT	(15)
 
 /*
  * ADC Voltage divider settings
