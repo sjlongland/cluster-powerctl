@@ -79,6 +79,10 @@ static volatile uint8_t batt_state_counter = 0;
  * How long before we can consider switching sources.
  */
 static volatile uint8_t src_timeout = 0;
+/*!
+ * How long during a "high voltage" condition before we shut down?
+ */
+static volatile uint8_t high_timeout = 0;
 
 /*!
  * How long before we change LED states?
@@ -299,6 +303,10 @@ int main(void) {
 				last_batt_state = batt_state;
 			}
 
+			if (adc_batt < VBATT_HIGH)
+				/* Battery is below high threshold */
+				high_timeout = HIGH_TIMEOUT;
+
 			/* Battery control */
 			uint8_t state = FET_PORT & FET_SRC_MASK;
 			switch (state) {
@@ -307,6 +315,7 @@ int main(void) {
 #ifdef DEBUG
 					uart_tx('I');
 #endif
+
 					if ((adc_batt < VBATT_CRIT)
 							&& (adc_mains > adc_batt)) {
 						/* Charger urgently needed. */
@@ -343,7 +352,10 @@ int main(void) {
 #ifdef DEBUG
 						uart_tx('H');
 #endif
-						select_src(SRC_NONE);
+						if (high_timeout)
+							high_timeout--;
+						else
+							select_src(SRC_NONE);
 					} else if ((adc_batt < VBATT_CRIT)
 							&& (adc_mains > adc_solar)
 							&& (adc_mains > adc_batt)) {
@@ -379,7 +391,10 @@ int main(void) {
 #ifdef DEBUG
 						uart_tx('H');
 #endif
-						select_src(SRC_NONE);
+						if (high_timeout)
+							high_timeout--;
+						else
+							select_src(SRC_NONE);
 						/* Are we still critical? */
 					} else if (adc_batt < VBATT_CRIT) {
 #ifdef DEBUG

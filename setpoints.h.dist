@@ -30,6 +30,11 @@
 #define SRC_TIMEOUT	(15)
 
 /*!
+ * How long to wait at high battery before shutdown?
+ */
+#define HIGH_TIMEOUT	(5)
+
+/*!
  * How long before we change LED states?
  */
 #define LED_TIMEOUT	(150)
