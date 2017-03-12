@@ -1,5 +1,23 @@
+/*!
+ * vim: set tw=72 filetype=c:
+ */
 #ifndef _BOARD_H
 #define _BOARD_H
+
+/* Timebase settings */
+
+/*!
+ * Timer tick frequency, in Hz.  This also sets the baud rate for the
+ * debugging UART output.
+ */
+#define TIMER_FREQ		1200
+
+/*!
+ * Return the approximate number of timer ticks.
+ * @param	ms	Milliseconds
+ */
+#define TIMER_TICKS(ms)	\
+	((uint16_t)((((uint32_t)(ms)) * 1000) / TIMER_FREQ))
 
 /* LEDs */
 #define LED_TEMP_LOW		(1 << 7)
