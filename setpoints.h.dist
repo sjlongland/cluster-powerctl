@@ -1,3 +1,7 @@
+/*
+ * vim: set filetype=c tw=72:
+ */
+
 #ifndef _SETPOINTS_H
 #define _SETPOINTS_H
 /*!
@@ -20,24 +24,14 @@
  */
 
 /*!
- * How many Timer1 ticks between ADC readings?
+ * How long between ADC readings?  Milliseconds.
  */
-#define ADC_TIMEOUT 	(1200)
+#define ADC_TIMEOUT_MS 	(1000)
 
 /*!
- * How long to wait before switching charging sources?
+ * How long before we change LED states?  Milliseconds.
  */
-#define SRC_TIMEOUT	(30)
-
-/*!
- * How long to wait at high battery before shutdown?
- */
-#define HIGH_TIMEOUT	(5)
-
-/*!
- * How long before we change LED states?
- */
-#define LED_TIMEOUT	(150)
+#define LED_TIMEOUT_MS	(150)
 
 /*
  * Temperature ranges and fan PWM settings
@@ -47,8 +41,8 @@
 #define FAN_PWM_MIN	(88)		/*!< Minimum PWM value */
 #define FAN_PWM_MAX	(255)		/*!< Maximum PWM value */
 
-/*! Fan kick-start timeout */
-#define FAN_TIMEOUT	(15)
+/*! Fan kick-start timeout, milliseconds */
+#define FAN_TIMEOUT	(15000)
 
 /*
  * ADC Voltage divider settings
@@ -61,17 +55,43 @@
 #define ADC_REF		(1100ULL)	/*!< AREF = 1.1mV */
 #define ADC_MAX		(65535ULL)	/*!< ADLAR = 1 */
 
+/* --- Thresholds --- */
+
 /*!
- * "Critical" battery voltage.  This is considered a serious condition.
+ * Critically high battery voltage.  Exceeding this voltage could damage
+ * the battery or the equipment downstream of it.
  */
-#define VBATT_CRIT_MV	(11800)
+#define VCH_MV		(11800)
+
 /*!
- * "Low" battery voltage.  Indication that we should turn a charger on.
+ * High battery voltage.  If we reach this voltage and the charger
+ * stops, just switch to discharge mode, consider the job done.
  */
-#define VBATT_LOW_MV	(12000)
+#define VH_MV		(15500)
+
 /*!
- * "High" battery voltage.  Indication we should turn the charger off.
+ * Low battery voltage.  If the voltage dips to or below this level, we
+ * should turn the charger on.
  */
-#define VBATT_HIGH_MV	(13500)
+#define VL_MV		(12000)
+
+/*!
+ * Critically low battery voltage.  If we reach this level, we need to
+ * urgently turn the charger on and need to be ready to switch sources
+ * in a hurry if the chosen source isn't charging.
+ */
+#define VCL_MV		(11800)
+
+/* --- Timeouts --- */
+
+/*!
+ * High frequency polling period in milliseconds.
+ */
+#define T_HF_MS		(15000)
+
+/*!
+ * Low frequency polling period in milliseconds.
+ */
+#define T_LF_MS		(5000)
 
 #endif
