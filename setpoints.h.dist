@@ -26,12 +26,12 @@
 /*!
  * How long between ADC readings?  Milliseconds.
  */
-#define ADC_TIMEOUT_MS 	(1000)
+#define T_ADC_MS 	(1000)
 
 /*!
  * How long before we change LED states?  Milliseconds.
  */
-#define LED_TIMEOUT_MS	(150)
+#define T_LED_MS	(150)
 
 /*
  * Temperature ranges and fan PWM settings
@@ -42,7 +42,7 @@
 #define FAN_PWM_MAX	(255)		/*!< Maximum PWM value */
 
 /*! Fan kick-start timeout, milliseconds */
-#define FAN_TIMEOUT	(15000)
+#define T_FAN_MS	(15000)
 
 /*
  * ADC Voltage divider settings
