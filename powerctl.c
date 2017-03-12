@@ -23,76 +23,6 @@
 #define ADC_MUX_TEMP	(ADC_REF_1V1 | 0x22)
 
 /*!
- * For state machine, the last state of the ADC MUX so we know whether
- * to ignore the sample or not.  Datasheet recommends discarding samples
- * to let things stabalise when switching sources/references.
- */
-static volatile uint8_t last_admux = 0;
-
-/*!
- * For state machine, determines what the battery was one sample ago so
- * we know if it's charging, discharging, or remaining static.  ADC units.
- */
-static volatile uint16_t last_adc_batt = 0;
-
-/*!
- * Current reading of the battery voltage in ADC units.
- */
-static volatile uint16_t adc_batt = 0;
-
-/*!
- * Current reading of the solar charger voltage in ADC units.
- */
-static volatile uint16_t adc_solar = 0;
-
-/*!
- * Current reading of the mains charger voltage in ADC units.
- */
-static volatile uint16_t adc_mains = 0;
-
-/*!
- * Current reading of the internal temperature sensor in ADC units.
- */
-static volatile uint16_t adc_temp = 0;
-
-/*!
- * How long before we next take a reading?
- */
-static volatile uint16_t adc_timeout = 0;
-
-/*!
- * State of the battery.
- * -1:	discharging
- *  0:	remaining steady
- *  1:	charging
- */
-static volatile int8_t batt_state = 0;
-/*!
- * The state of the battery at last check.
- */
-static volatile int8_t last_batt_state = 0;
-/*!
- * The number of readings that the battery has maintained this state.
- */
-static volatile uint8_t batt_state_counter = 0;
-/*!
- * How long before we can consider switching sources.
- */
-static volatile uint8_t src_timeout = 0;
-/*!
- * How long during a "high voltage" condition before we shut down?
- */
-static volatile uint8_t high_timeout = 0;
-
-/*!
- * How long before we change LED states?
- */
-static volatile uint8_t led_timeout = 0;
-
-/*! Fan kick-start timeout */
-static volatile uint8_t fan_timeout = 0;
-
-/*!
  * Macro for computing ADC measurements.  This assumes the input to the
  * ADC pin is via a voltage divider made up of resistors R1 and R2, with
  * the input voltage applied across both resistors and the ADC measuring
@@ -107,57 +37,262 @@ static volatile uint8_t fan_timeout = 0;
 	(ADC_REF * (VDIV_R1 + VDIV_R2))				\
 )
 
-/*!
- * "Critical" battery voltage.  This is considered a serious condition.
- */
-#define VBATT_CRIT	ADC_READ(VBATT_CRIT_MV)
-/*!
- * "Low" battery voltage.  Indication that we should turn a charger on.
- */
-#define VBATT_LOW	ADC_READ(VBATT_LOW_MV)
-/*!
- * "High" battery voltage.  Indication we should turn the charger off.
- */
-#define VBATT_HIGH	ADC_READ(VBATT_HIGH_MV)
+/* --- Thresholds --- */
+#define V_CH_ADC	ADC_READ(V_CH_MV)
+#define V_H_ADC		ADC_READ(V_H_MV)
+#define V_L_ADC		ADC_READ(V_L_MV)
+#define V_CL_ADC	ADC_READ(V_CL_MV)
 
-/* Debug messages */
-#ifdef DEBUG
-const char STR_INIT[] PROGMEM = {"INIT "};
-const char STR_ADC[] PROGMEM = {"ADC "};
-const char STR_START[] PROGMEM = {"START "};
-const char STR_READ[] PROGMEM = {"READ "};
-const char STR_NL[] PROGMEM = {"\r\n"};
-#endif
+/* --- Timeouts --- */
+#define T_HF_TICKS	TIMER_TICKS(T_HF_MS)
+#define T_LF_TICKS	TIMER_TICKS(T_LF_MS)
+#define T_FAN_TICKS	TIMER_TICKS(T_FAN_MS)
+#define T_LED_TICKS	TIMER_TICKS(T_LED_MS)
+#define T_ADC_TICKS	TIMER_TICKS(T_ADC_MS)
+
+#define STATE_DIS_CHECK	(0)	/*!< Check voltage in discharge state */
+#define STATE_DIS_WAIT	(1)	/*!< Wait in discharge state */
+#define STATE_CHG_CHECK	(2)	/*!< Check voltage in charging state */
+#define STATE_CHG_WAIT	(3)	/*!< Wait in charging state */
+/*!
+ * Charger state machine state.  We have four states we can be in.
+ */
+static volatile uint8_t charger_state = STATE_DIS_CHECK;
 
 #define SRC_NONE	(0)	/*!< Turn off all chargers */
 #define SRC_SOLAR	(1)	/*!< Turn on solar charger */
 #define SRC_MAINS	(2)	/*!< Turn on mains charger */
+#define SRC_ALT		(3)	/*!< Alternate to *other* source,
+				 * valid for select_src only.
+				 */
+
+/*!
+ * Charging source.
+ */
+static volatile uint8_t charge_source = SRC_NONE;
+
+/*!
+ * For state machine, the last state of the ADC MUX so we know whether
+ * to ignore the sample or not.  Datasheet recommends discarding samples
+ * to let things stabalise when switching sources/references.
+ */
+static volatile uint8_t last_admux = 0;
+
+/*!
+ * For state machine, determines what the battery was one sample ago so
+ * we know if it's charging, discharging, or remaining static.  ADC units.
+ */
+static volatile uint16_t v_bl_adc = 0;
+
+/*!
+ * Current reading of the battery voltage in ADC units.
+ */
+static volatile uint16_t v_bn_adc = 0;
+
+/*!
+ * Current reading of the internal temperature sensor in ADC units.
+ */
+static volatile uint16_t temp_adc = 0;
+
+/*!
+ * How long before we next take a reading?
+ */
+static volatile uint16_t t_adc = 0;
+
+/*!
+ * How long before we change LED states?
+ */
+static volatile uint16_t t_led = 0;
+
+/*! Fan kick-start timeout */
+static volatile uint16_t t_fan = 0;
+
+/*!
+ * Charger timeout
+ */
+static volatile uint16_t t_charger = T_LF_TICKS;
+
+/* Debug messages */
+#ifdef DEBUG
+const char STR_INIT[] PROGMEM = {"INIT "};
+const char STR_SELECT_SRC[] PROGMEM = {"SOURCE="};
+const char STR_SRC_NONE[] PROGMEM = {"NONE"};
+const char STR_SRC_SOLAR[] PROGMEM = {"SOLAR"};
+const char STR_SRC_MAINS[] PROGMEM = {"MAINS"};
+const char STR_DIS[] PROGMEM = {"\r\nDISCHARGE "};
+const char STR_CHG[] PROGMEM = {"\r\nCHARGE "};
+const char STR_CHK[] PROGMEM = {"CHECK\r\n"};
+const char STR_WAIT[] PROGMEM = {"WAIT\r\n"};
+const char STR_V_BN_GE_V_H[] PROGMEM = {"V_BN >= V_H? "};
+const char STR_V_BN_GT_V_L[] PROGMEM = {"V_BN > V_L? "};
+const char STR_V_BN_LE_V_CL[] PROGMEM = {"V_BN <= V_CL? "};
+const char STR_V_BN_GE_V_CH[] PROGMEM = {"V_BN <= V_CH? "};
+const char STR_V_BN_LE_V_BL[] PROGMEM = {"V_BN <= V_BL? "};
+const char STR_HAVE_SOURCE[] = PROGMEM = {"HAVE SOURCE? "};
+const char STR_T_CHARGER[] PROGMEM = {"T_CHARGER EXPIRED? "};
+const char STR_YES[] PROGMEM = {"YES\r\n"};
+const char STR_NO[] PROGMEM = {"NO\r\n"};
+const char STR_ADC[] PROGMEM = {"ADC "};
+const char STR_START[] PROGMEM = {"START "};
+const char STR_READ[] PROGMEM = {"READ "};
+const char STR_NL[] PROGMEM = {"\r\n"};
+
+static inline uart_tx_bool(const char* msg, uint8_t val) {
+	uart_tx_str(msg);
+	if (val)
+		uart_tx_str(STR_YES);
+	else
+		uart_tx_str(STR_NO);
+}
+#endif
+
 /*!
  * Switch between chargers.  This is does a "break-before-make" switchover
  * of charging sources to switch from mains to solar, solar to mains, or to
  * switch from charging to discharging mode.  It expressly forbids turning
  * both chargers on simultaneously.
+ *
+ * Added is the ability to just alternate between sources.
  */
 void select_src(uint8_t src) {
+	if (src == SRC_ALT) {
+		if (charge_source == SRC_SOLAR)
+			src = SRC_MAINS;
+		else
+			src = SRC_SOLAR;
+	}
+#ifdef DEBUG
+	uart_tx_str(STR_SELECT_SRC);
+#endif
 	switch(src) {
 		case SRC_SOLAR:
 			FET_PORT &= ~FET_MAINS;
 			FET_PORT |= FET_SOLAR;
+			charge_source = SRC_SOLAR;
+#ifdef DEBUG
+			uart_tx_str(STR_SRC_SOLAR);
+#endif
 			break;
 		case SRC_MAINS:
 			FET_PORT &= ~FET_SOLAR;
 			FET_PORT |= FET_MAINS;
+			charge_source = SRC_MAINS;
+#ifdef DEBUG
+			uart_tx_str(STR_SRC_MAINS);
+#endif
 			break;
 		case SRC_NONE:
 		default:
 			FET_PORT &= ~FET_SRC_MASK;
+			charge_source = SRC_NONE;
+#ifdef DEBUG
+			uart_tx_str(STR_SRC_NONE);
+#endif
 			break;
 	}
-	src_timeout = SRC_TIMEOUT;
+#ifdef DEBUG
+	uart_tx_str(STR_NL);
+#endif
+}
+
+static void discharge_check() {
+	/* Decide when we should do our next check */
+#ifdef DEBUG
+	uart_tx_str(STR_DIS); uart_tx_str(STR_CHK);
+	uart_tx_bool(V_BN_GE_V_H, v_bn_adc >= V_H_ADC);
+#endif
+	if (v_bn_adc >= V_H_ADC)
+		t_charger = T_LF_TICKS;
+	else
+		t_charger = T_HF_TICKS;
+
+	/* Snapshot the current battery voltage */
+	v_bl_adc = v_bn_adc;
+
+	/* Exit state */
+#ifdef DEBUG
+	uart_tx_bool(STR_V_BN_GT_V_L, v_bn_adc > V_L_ADC);
+#endif
+	if (v_bn_adc > V_L_ADC)
+		charger_state = STATE_DIS_WAIT;
+	else
+		charger_state = STATE_CHG_CHECK;
+}
+
+static void discharge_wait() {
+#ifdef DEBUG
+	uart_tx_str(STR_DIS); uart_tx_str(STR_WAIT);
+	uart_tx_bool(STR_V_BN_LE_V_CL, v_bn_adc <= V_CL_ADC);
+#endif
+	if (v_bn_adc <= V_CL_ADC)
+		/* Expire timer */
+		t_charger = 0;
+
+	/* Exit state if timer is expired */
+#ifdef DEBUG
+	uart_tx_bool(STR_T_CHARGER, !t_charger);
+#endif
+	if (!t_charger)
+		charger_state = STATE_DIS_CHECK;
+}
+
+static void charge_check() {
+#ifdef DEBUG
+	uart_tx_str(STR_CHG); uart_tx_str(STR_CHK);
+	uart_tx_bool(STR_V_BN_GE_V_H, v_bn_adc >= V_H_ADC);
+#endif
+	/* Check for high voltage threshold */
+	if (v_bn_adc >= V_H_ADC) {
+		/* We are done now */
+		select_src(SRC_NONE);
+		charger_state = STATE_DIS_CHECK;
+		return;
+	}
+
+#ifdef DEBUG
+	uart_tx_bool(STR_V_BN_LE_V_CL, v_bn_adc <= V_CL_ADC);
+#endif
+	/* Still need to charge, when should we next check? */
+	if (v_bn_adc <= V_CL_ADC)
+		t_charger = T_HF_TICKS;
+	else
+		t_charger = T_LF_TICKS;
+
+#ifdef DEBUG
+	uart_tx_bool(STR_HAVE_SOURCE, charge_source != SRC_NONE);
+	uart_tx_bool(STR_V_BN_LE_V_BL, v_bn_adc <= v_bl_adc);
+#endif
+	if (charge_source == SRC_NONE) {
+		/* Not yet charging, switch to primary source */
+		select_src(SRC_SOLAR);
+	} else if (v_bn_adc <= v_bl_adc) {
+		/* Situation not improving, switch sources */
+		select_src(SRC_ALT);
+	}
+
+	v_bl_adc = v_bn_adc;
+	charger_state = STATE_CHG_WAIT;
+}
+
+static void charge_wait() {
+#ifdef DEBUG
+	uart_tx_str(STR_CHG); uart_tx_str(STR_WAIT);
+	uart_tx_bool(STR_V_BN_GE_V_CH, v_bn_adc >= V_CH_ADC);
+#endif
+	if (v_bn_adc >= V_CH_ADC)
+		/* Expire timer */
+		t_charger = 0;
+
+#ifdef DEBUG
+	uart_tx_bool(STR_T_CHARGER, !t_charger);
+#endif
+	if (!t_charger)
+		charger_state = STATE_CHG_CHECK;
 }
 
 /*!
- * Main entrypoint */
+ * Main entrypoint
+ */
 int main(void) {
 	/* Configure LEDs */
 	LED_PORT_DDR_REG = LED_PORT_DDR_VAL;
@@ -176,13 +311,13 @@ int main(void) {
 	OCR0A = 0;
 
 	/*
-	 * Configure Timer1: 1.2kHz System tick timer
+	 * Configure Timer1: TIMER_FREQ System tick timer
 	 * / baud rate generator for debug output
 	 */
 	TCCR1A = 0;
 	TCCR1B = (1 << WGM12) | (1 << CS10);
 	TCCR1C = 0;
-	OCR1A = F_CPU/1200;
+	OCR1A = F_CPU/TIMER_FREQ;
 	TIMSK1 = (1 << OCIE1A);
 
 	/* ADC configuration */
@@ -204,248 +339,62 @@ int main(void) {
 #endif
 	MCUSR = 0;
 	while(1) {
-		if (!led_timeout) {
-#ifndef DEBUG
-			if ((adc_batt < VBATT_CRIT)
-					|| (adc_temp > TEMP_MAX)) {
-				/* Warning conditions */
-				LED_PORT ^= LED_WARNING;
-			} else {
-				LED_PORT &= ~LED_WARNING;
-			}
-#endif
-
-			if (adc_batt < VBATT_LOW) {
-				/* Battery is low */
+		if (!t_led) {
+			if (v_bn_adc <= V_CL_ADC) {
+				/* Battery is critically low */
 				LED_PORT &= ~LED_BATT_HIGH;
 				LED_PORT ^= LED_BATT_GOOD;
-			} else if (adc_batt >= VBATT_HIGH) {
+			} else if (v_bn_adc <= V_L_ADC) {
+				/* Battery is low */
+				LED_PORT &= ~(LED_BATT_HIGH|LED_BATT_GOOD);
+			} else if (v_bn_adc <= V_H_ADC) {
+				/* Battery is in "good" range */
+				LED_PORT &= ~LED_BATT_HIGH;
+				LED_PORT |= LED_BATT_GOOD;
+			} else if (v_bn_adc <= V_CH_ADC) {
 				/* Battery is above "high" threshold */
-				LED_PORT ^= LED_BATT_HIGH;
+				LED_PORT |= LED_BATT_HIGH;
 				LED_PORT &= ~LED_BATT_GOOD;
 			} else {
-				/* Battery is above "low" threshold */
-				LED_PORT |= LED_BATT_GOOD;
-				LED_PORT &= ~LED_BATT_HIGH;
+				/* Battery is critically high */
+				LED_PORT ^= LED_BATT_HIGH;
+				LED_PORT &= ~LED_BATT_GOOD;
 			}
 
-			if (adc_temp < TEMP_MIN) {
+			if (temp_adc < TEMP_MIN) {
 				LED_PORT |= LED_TEMP_LOW;
 				LED_PORT &= ~LED_TEMP_HIGH;
-			} else if (adc_temp < TEMP_MAX) {
+			} else if (temp_adc < TEMP_MAX) {
 				LED_PORT ^= LED_TEMP_LOW;
 				LED_PORT &= ~LED_TEMP_HIGH;
 			} else {
 				LED_PORT &= ~LED_TEMP_LOW;
 				LED_PORT ^= LED_TEMP_HIGH;
 			}
-			led_timeout = LED_TIMEOUT;
+			t_led = T_LED_TICKS;
 		}
-		if (!adc_timeout) {
-			adc_timeout = ADC_TIMEOUT;
+
+		if (!t_adc) {
+			t_adc = T_ADC_TICKS;
 			ADCSRA |= (1 << ADEN) | (1 << ADSC);
-#ifdef DEBUG
-			uart_tx_str(STR_ADC);
-			uart_tx_str(STR_READ);
-#endif
+
 			while(ADCSRA & (1 << ADEN));
-#ifdef DEBUG
-			uart_tx_str(STR_NL);
-			uart_tx_str(STR_ADC);
-			uart_tx('T'); uart_tx_hex_word(adc_temp);
-			uart_tx(' ');
-			uart_tx('B'); uart_tx_hex_word(adc_batt);
-			uart_tx(' ');
-			uart_tx('L'); uart_tx_hex_word(last_adc_batt);
-			uart_tx(' ');
-			uart_tx('d');
-			if (last_adc_batt > adc_batt) {
-				uart_tx('-');
-				uart_tx_hex_word(last_adc_batt - adc_batt);
-			} else {
-				uart_tx('+');
-				uart_tx_hex_word(adc_batt - last_adc_batt);
-			}
-			uart_tx(' ');
-			uart_tx('S'); uart_tx_hex_word(adc_solar);
-			uart_tx(' ');
-			uart_tx('M'); uart_tx_hex_word(adc_mains);
-			uart_tx(' ');
-			uart_tx('F'); uart_tx_hex_byte(FET_PORT);
-#endif
-
-			/* Battery direction */
-#ifdef DEBUG
-			uart_tx(' ');
-			uart_tx('b');
-#endif
-			if ((!last_adc_batt) || (adc_batt == last_adc_batt)) {
-				batt_state = 0;	/* Steady? */
-#ifdef DEBUG
-				uart_tx('=');
-#endif
-			} else if (adc_batt > last_adc_batt) {
-				batt_state = 1;
-#ifdef DEBUG
-				uart_tx('+');
-#endif
-			} else if (adc_batt < last_adc_batt) {
-				batt_state = -1;
-#ifdef DEBUG
-				uart_tx('-');
-#endif
-			}
-
-			if (last_batt_state == batt_state) {
-				batt_state_counter++;
-			} else {
-				batt_state_counter = 0;
-				last_batt_state = batt_state;
-			}
-
-			if (adc_batt < VBATT_HIGH)
-				/* Battery is below high threshold */
-				high_timeout = HIGH_TIMEOUT;
-
-			/* Battery control */
-			uint8_t state = FET_PORT & FET_SRC_MASK;
-			switch (state) {
-				case 0:
-					/* Idle state */
-#ifdef DEBUG
-					uart_tx('I');
-#endif
-
-					if ((adc_batt < VBATT_CRIT)
-							&& (adc_mains > adc_batt)) {
-						/* Charger urgently needed. */
-#ifdef DEBUG
-						uart_tx('C');
-						uart_tx('M');
-#endif
-						select_src(SRC_MAINS);
-					} else if (adc_batt < VBATT_LOW) {
-						/* Charger needed. */
-#ifdef DEBUG
-						uart_tx('L');
-#endif
-						if ((adc_solar >= adc_mains)
-								&& (adc_solar > adc_batt)) {
-#ifdef DEBUG
-							uart_tx('S');
-#endif
-							select_src(SRC_SOLAR);
-						} else {
-#ifdef DEBUG
-							uart_tx('M');
-#endif
-							select_src(SRC_MAINS);
-						}
-					}
-					break;
-				case FET_SOLAR:
-#ifdef DEBUG
-					uart_tx('S');
-#endif
-					/* Are we over voltage? */
-					if (adc_batt >= VBATT_HIGH) {
-#ifdef DEBUG
-						uart_tx('H');
-#endif
-						if (high_timeout)
-							high_timeout--;
-						else
-							select_src(SRC_NONE);
-					} else if ((adc_batt < VBATT_CRIT)
-							&& (adc_mains > adc_solar)
-							&& (adc_mains > adc_batt)) {
-#ifdef DEBUG
-						uart_tx('C');
-#endif
-						select_src(SRC_MAINS);
-						/* Are we still discharging? */
-					} else if ((!src_timeout)
-							&& (adc_mains > adc_batt)
-							&& (batt_state <= 0)
-							&& (batt_state_counter > 10)) {
-#ifdef DEBUG
-						uart_tx('M');
-#endif
-						select_src(SRC_MAINS);
-					} else if (src_timeout) {
-#ifdef DEBUG
-						uart_tx('s');
-						uart_tx_hex_byte(batt_state_counter);
-						uart_tx('t');
-						uart_tx_hex_byte(src_timeout);
-#endif
-						src_timeout--;
-					}
-					break;
-				case FET_MAINS:
-#ifdef DEBUG
-					uart_tx('M');
-#endif
-					/* Are we over voltage? */
-					if (adc_batt >= VBATT_HIGH) {
-#ifdef DEBUG
-						uart_tx('H');
-#endif
-						if (high_timeout)
-							high_timeout--;
-						else
-							select_src(SRC_NONE);
-						/* Are we still critical? */
-					} else if (adc_batt < VBATT_CRIT) {
-#ifdef DEBUG
-						uart_tx('C');
-#endif
-						if (adc_mains < adc_solar) {
-							/* Mains no good, try solar */
-#ifdef DEBUG
-							uart_tx('S');
-#endif
-							select_src(SRC_SOLAR);
-						}
-						/* Is solar better now? */
-					} else if ((!src_timeout)
-							&& (adc_solar > adc_mains)) {
-#ifdef DEBUG
-						uart_tx('S');
-#endif
-						select_src(SRC_SOLAR);
-					} else if (src_timeout) {
-#ifdef DEBUG
-						uart_tx('t');
-						uart_tx_hex_byte(src_timeout);
-#endif
-						src_timeout--;
-					}
-					break;
-				default:
-					/* Should not get here */
-#ifdef DEBUG
-					uart_tx('!');
-#endif
-					select_src(SRC_NONE);
-			}
 
 			/* Fan control */
-			if (fan_timeout) {
+			if (t_fan) {
 				/* Kick-start mode */
 				OCR0A = FAN_PWM_MAX;
-				fan_timeout--;
-			} else if (adc_temp > TEMP_MAX) {
+			} else if (temp_adc > TEMP_MAX) {
 				/* We're at the maximum temperature, FULL SPEED! */
 				OCR0A = FAN_PWM_MAX;
-			} else if (adc_temp > TEMP_MIN) {
+			} else if (temp_adc > TEMP_MIN) {
 				/* Scale fan speed linearly with temperature */
-				uint8_t pwm = (((adc_temp - TEMP_MIN)
+				uint8_t pwm = (((temp_adc - TEMP_MIN)
 							* FAN_PWM_MAX)
 						/ (TEMP_MAX - TEMP_MIN));
 				if (OCR0A < FAN_PWM_MIN)
 					/* Enter kick-start mode */
-					fan_timeout = FAN_TIMEOUT;
+					t_fan = T_FAN_TICKS;
 				else if (pwm > FAN_PWM_MIN)
 					OCR0A = pwm;
 				else
@@ -454,13 +403,24 @@ int main(void) {
 				/* Turn fans off completely. */
 				OCR0A = 0;
 			}
-#ifdef DEBUG
-			uart_tx(' ');
-			uart_tx('f');
-			uart_tx_hex_byte(OCR0A);
 
-			uart_tx_str(STR_NL);
-#endif
+			/* Charger control */
+			switch (charger_state) {
+				case STATE_DIS_CHECK:
+					discharge_check();
+					break;
+				case STATE_DIS_WAIT:
+					discharge_wait();
+					break;
+				case STATE_CHG_CHECK:
+					charge_check();
+					break;
+				case STATE_CHG_WAIT:
+					charge_wait();
+					break;
+				default:
+					charger_state = STATE_DIS_CHECK;
+			}
 		}
 	}
 	return 0;
@@ -470,10 +430,12 @@ ISR(TIM1_COMPA_vect) {
 #ifdef DEBUG
 	uart_tick();
 #endif
-	if (adc_timeout)
-		adc_timeout--;
-	if (led_timeout)
-		led_timeout--;
+	if (t_adc)
+		t_adc--;
+	if (t_led)
+		t_led--;
+	if (t_charger)
+		t_charger--;
 }
 
 ISR(ADC_vect) {
@@ -481,13 +443,14 @@ ISR(ADC_vect) {
 	if (last_admux == ADMUX) {
 		switch(last_admux) {
 			case ADC_MUX_TEMP:
-				adc_temp = adc;
+				temp_adc = adc;
 				ADMUX = ADC_MUX_BATT;
 				ADCSRA |= (1 << ADSC);
 				break;
 			case ADC_MUX_BATT:
-				last_adc_batt = adc_batt;
-				adc_batt = adc;
+				v_bn_adc = adc;
+#if 0
+				/* Not being used for now */
 				ADMUX = ADC_MUX_SOLAR;
 				ADCSRA |= (1 << ADSC);
 				break;
@@ -498,6 +461,7 @@ ISR(ADC_vect) {
 				break;
 			case ADC_MUX_MAINS:
 				adc_mains = adc;
+#endif
 			default:
 				ADMUX = ADC_MUX_TEMP;
 				ADCSRA &= ~(1 << ADEN);
