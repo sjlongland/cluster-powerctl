@@ -61,26 +61,26 @@
  * Critically high battery voltage.  Exceeding this voltage could damage
  * the battery or the equipment downstream of it.
  */
-#define VCH_MV		(11800)
+#define V_CH_MV		(11800)
 
 /*!
  * High battery voltage.  If we reach this voltage and the charger
  * stops, just switch to discharge mode, consider the job done.
  */
-#define VH_MV		(15500)
+#define V_H_MV		(15500)
 
 /*!
  * Low battery voltage.  If the voltage dips to or below this level, we
  * should turn the charger on.
  */
-#define VL_MV		(12000)
+#define V_L_MV		(12000)
 
 /*!
  * Critically low battery voltage.  If we reach this level, we need to
  * urgently turn the charger on and need to be ready to switch sources
  * in a hurry if the chosen source isn't charging.
  */
-#define VCL_MV		(11800)
+#define V_CL_MV		(11800)
 
 /* --- Timeouts --- */
 
