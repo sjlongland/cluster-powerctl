@@ -248,10 +248,15 @@ static void charge_check() {
 	else
 		t_charger = T_LF_S;
 
-#ifdef DEBUG
-	uart_tx_bool(STR_HAVE_SOURCE, charge_source != SRC_NONE);
-	uart_tx_bool(STR_V_BN_LE_V_BL, v_bn_adc <= v_bl_adc);
-#endif
+	/* Critically high voltage check */
+	if (v_bn_adc >= V_CH_ADC) {
+		/* We must stop now! */
+		LED_PORT &= ~LED_WARNING;
+		select_src(SRC_NONE);
+		charger_state = STATE_DIS_CHECK;
+		return;
+	}
+
 	if (charge_source == SRC_NONE) {
 		/* Not yet charging, switch to primary source */
 		select_src(SRC_SOLAR);
@@ -262,12 +267,16 @@ static void charge_check() {
 #endif
 		if (v_bn_adc >= V_H_ADC) {
 			/* We are done now */
+			LED_PORT &= ~LED_WARNING;
 			select_src(SRC_NONE);
 			charger_state = STATE_DIS_CHECK;
 			return;
 		} else {
 			/* Situation not improving, switch sources */
 			select_src(SRC_ALT);
+
+			/* Show a warning on the LEDs */
+			LED_PORT |= LED_WARNING;
 		}
 	}
 
@@ -381,6 +390,7 @@ int main(void) {
 				LED_PORT &= ~LED_TEMP_LOW;
 				LED_PORT ^= LED_TEMP_HIGH;
 			}
+
 			t_led = T_LED_TICKS;
 		}
 
