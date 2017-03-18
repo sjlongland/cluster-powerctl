@@ -26,7 +26,7 @@
 /*!
  * How long between ADC readings?  Milliseconds.
  */
-#define T_ADC_MS 	(1000)
+#define T_ADC_MS 	(250)
 
 /*!
  * How long before we change LED states?  Milliseconds.
@@ -41,8 +41,8 @@
 #define FAN_PWM_MIN	(88)		/*!< Minimum PWM value */
 #define FAN_PWM_MAX	(255)		/*!< Maximum PWM value */
 
-/*! Fan kick-start timeout, milliseconds */
-#define T_FAN_MS	(15000)
+/*! Fan kick-start timeout, seconds */
+#define T_FAN_S		(15)
 
 /*
  * ADC Voltage divider settings
@@ -61,19 +61,19 @@
  * Critically high battery voltage.  Exceeding this voltage could damage
  * the battery or the equipment downstream of it.
  */
-#define V_CH_MV		(11800)
+#define V_CH_MV		(15500)
 
 /*!
  * High battery voltage.  If we reach this voltage and the charger
  * stops, just switch to discharge mode, consider the job done.
  */
-#define V_H_MV		(15500)
+#define V_H_MV		(14600)
 
 /*!
  * Low battery voltage.  If the voltage dips to or below this level, we
  * should turn the charger on.
  */
-#define V_L_MV		(12000)
+#define V_L_MV		(13800)
 
 /*!
  * Critically low battery voltage.  If we reach this level, we need to
@@ -85,13 +85,13 @@
 /* --- Timeouts --- */
 
 /*!
- * High frequency polling period in milliseconds.
+ * High frequency polling period in seconds.
  */
-#define T_HF_MS		(15000)
+#define T_HF_S		(60)
 
 /*!
- * Low frequency polling period in milliseconds.
+ * Low frequency polling period in seconds.
  */
-#define T_LF_MS		(5000)
+#define T_LF_S		(15)
 
 #endif
