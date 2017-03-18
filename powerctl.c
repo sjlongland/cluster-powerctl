@@ -44,11 +44,7 @@
 #define V_CL_ADC	ADC_READ(V_CL_MV)
 
 /* --- Timeouts --- */
-#define T_HF_TICKS	TIMER_TICKS(T_HF_MS)
-#define T_LF_TICKS	TIMER_TICKS(T_LF_MS)
-#define T_FAN_TICKS	TIMER_TICKS(T_FAN_MS)
 #define T_LED_TICKS	TIMER_TICKS(T_LED_MS)
-#define T_ADC_TICKS	TIMER_TICKS(T_ADC_MS)
 
 #define STATE_DIS_CHECK	(0)	/*!< Check voltage in discharge state */
 #define STATE_DIS_WAIT	(1)	/*!< Wait in discharge state */
@@ -95,9 +91,14 @@ static volatile uint16_t v_bn_adc = 0;
 static volatile uint16_t temp_adc = 0;
 
 /*!
+ * One-second event timer
+ */
+static volatile uint16_t t_second = 0;
+
+/*!
  * How long before we next take a reading?
  */
-static volatile uint16_t t_adc = 0;
+static volatile uint8_t t_adc = 0;
 
 /*!
  * How long before we change LED states?
@@ -105,12 +106,12 @@ static volatile uint16_t t_adc = 0;
 static volatile uint16_t t_led = 0;
 
 /*! Fan kick-start timeout */
-static volatile uint32_t t_fan = 0;
+static volatile uint8_t t_fan = 0;
 
 /*!
  * Charger timeout
  */
-static volatile uint32_t t_charger = T_LF_TICKS;
+static volatile uint8_t t_charger = T_LF_S;
 
 /* Debug messages */
 #ifdef DEBUG
@@ -202,9 +203,9 @@ static void discharge_check() {
 	uart_tx_bool(STR_V_BN_GE_V_H, v_bn_adc >= V_H_ADC);
 #endif
 	if (v_bn_adc >= V_H_ADC)
-		t_charger = T_LF_TICKS;
+		t_charger = T_LF_S;
 	else
-		t_charger = T_HF_TICKS;
+		t_charger = T_HF_S;
 
 	/* Snapshot the current battery voltage */
 	v_bl_adc = v_bn_adc;
@@ -243,9 +244,9 @@ static void charge_check() {
 #endif
 	/* Still need to charge, when should we next check? */
 	if (v_bn_adc <= V_CL_ADC)
-		t_charger = T_HF_TICKS;
+		t_charger = T_HF_S;
 	else
-		t_charger = T_LF_TICKS;
+		t_charger = T_LF_S;
 
 #ifdef DEBUG
 	uart_tx_bool(STR_HAVE_SOURCE, charge_source != SRC_NONE);
@@ -339,6 +340,15 @@ int main(void) {
 #endif
 	MCUSR = 0;
 	while(1) {
+		/* One second passed, tick down the 1-second timers. */
+		if (!t_second) {
+			t_second = TIMER_FREQ;
+			if (t_adc)
+				t_adc--;
+			if (t_charger)
+				t_charger--;
+		}
+
 		if (!t_led) {
 			if (v_bn_adc <= V_CL_ADC) {
 				/* Battery is critically low */
@@ -375,7 +385,7 @@ int main(void) {
 		}
 
 		if (!t_adc) {
-			t_adc = T_ADC_TICKS;
+			t_adc = T_ADC_S;
 			ADCSRA |= (1 << ADEN) | (1 << ADSC);
 
 			while(ADCSRA & (1 << ADEN));
@@ -394,7 +404,7 @@ int main(void) {
 						/ (TEMP_MAX - TEMP_MIN));
 				if (OCR0A < FAN_PWM_MIN)
 					/* Enter kick-start mode */
-					t_fan = T_FAN_TICKS;
+					t_fan = T_FAN_S;
 				else if (pwm > FAN_PWM_MIN)
 					OCR0A = pwm;
 				else
@@ -430,12 +440,12 @@ ISR(TIM1_COMPA_vect) {
 #ifdef DEBUG
 	uart_tick();
 #endif
-	if (t_adc)
-		t_adc--;
+	/* One-second timer for longer events */
+	if (t_second)
+		t_second--;
+
 	if (t_led)
 		t_led--;
-	if (t_charger)
-		t_charger--;
 }
 
 ISR(ADC_vect) {
