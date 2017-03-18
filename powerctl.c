@@ -239,17 +239,6 @@ static void discharge_wait() {
 static void charge_check() {
 #ifdef DEBUG
 	uart_tx_str(STR_CHG); uart_tx_str(STR_CHK);
-	uart_tx_bool(STR_V_BN_GE_V_H, v_bn_adc >= V_H_ADC);
-#endif
-	/* Check for high voltage threshold */
-	if (v_bn_adc >= V_H_ADC) {
-		/* We are done now */
-		select_src(SRC_NONE);
-		charger_state = STATE_DIS_CHECK;
-		return;
-	}
-
-#ifdef DEBUG
 	uart_tx_bool(STR_V_BN_LE_V_CL, v_bn_adc <= V_CL_ADC);
 #endif
 	/* Still need to charge, when should we next check? */
@@ -266,8 +255,19 @@ static void charge_check() {
 		/* Not yet charging, switch to primary source */
 		select_src(SRC_SOLAR);
 	} else if (v_bn_adc <= v_bl_adc) {
-		/* Situation not improving, switch sources */
-		select_src(SRC_ALT);
+		/* Check for high voltage threshold, are we there yet? */
+#ifdef DEBUG
+		uart_tx_bool(STR_V_BN_GE_V_H, v_bn_adc >= V_H_ADC);
+#endif
+		if (v_bn_adc >= V_H_ADC) {
+			/* We are done now */
+			select_src(SRC_NONE);
+			charger_state = STATE_DIS_CHECK;
+			return;
+		} else {
+			/* Situation not improving, switch sources */
+			select_src(SRC_ALT);
+		}
 	}
 
 	v_bl_adc = v_bn_adc;
