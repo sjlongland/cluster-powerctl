@@ -17,9 +17,13 @@
 
 -include local.mk
 
+ifeq ($(DEBUG),y)
+DEBUGFLAGS = -DDEBUG
+endif
+
 CFLAGS = -Os -g -mmcu=attiny24a -Wall -Werror
 LDFLAGS = -mmcu=attiny24a -Wall -Werror
-CPPFLAGS = -DF_CPU=1000000UL
+CPPFLAGS = -DF_CPU=1000000UL $(DEBUGFLAGS)
 CROSS_COMPILE ?= avr-
 CC = $(CROSS_COMPILE)gcc
 OBJCOPY = $(CROSS_COMPILE)objcopy
