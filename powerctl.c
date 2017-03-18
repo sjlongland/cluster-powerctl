@@ -45,6 +45,7 @@
 
 /* --- Timeouts --- */
 #define T_LED_TICKS	TIMER_TICKS(T_LED_MS)
+#define T_ADC_TICKS	TIMER_TICKS(T_ADC_MS)
 
 #define STATE_DIS_CHECK	(0)	/*!< Check voltage in discharge state */
 #define STATE_DIS_WAIT	(1)	/*!< Wait in discharge state */
@@ -98,7 +99,7 @@ static volatile uint16_t t_second = 0;
 /*!
  * How long before we next take a reading?
  */
-static volatile uint8_t t_adc = 0;
+static volatile uint16_t t_adc = 0;
 
 /*!
  * How long before we change LED states?
@@ -352,11 +353,12 @@ int main(void) {
 		/* One second passed, tick down the 1-second timers. */
 		if (!t_second) {
 			t_second = TIMER_FREQ;
-			if (t_adc)
-				t_adc--;
 			if (t_charger)
 				t_charger--;
 		}
+
+		if (t_adc)
+			t_adc--;
 
 		if (!t_led) {
 			if (v_bn_adc <= V_CL_ADC) {
@@ -395,7 +397,7 @@ int main(void) {
 		}
 
 		if (!t_adc) {
-			t_adc = T_ADC_S;
+			t_adc = T_ADC_TICKS;
 			ADCSRA |= (1 << ADEN) | (1 << ADSC);
 
 			while(ADCSRA & (1 << ADEN));
