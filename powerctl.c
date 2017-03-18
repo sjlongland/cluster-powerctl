@@ -105,12 +105,12 @@ static volatile uint16_t t_adc = 0;
 static volatile uint16_t t_led = 0;
 
 /*! Fan kick-start timeout */
-static volatile uint16_t t_fan = 0;
+static volatile uint32_t t_fan = 0;
 
 /*!
  * Charger timeout
  */
-static volatile uint16_t t_charger = T_LF_TICKS;
+static volatile uint32_t t_charger = T_LF_TICKS;
 
 /* Debug messages */
 #ifdef DEBUG
@@ -128,7 +128,7 @@ const char STR_V_BN_GT_V_L[] PROGMEM = {"V_BN > V_L? "};
 const char STR_V_BN_LE_V_CL[] PROGMEM = {"V_BN <= V_CL? "};
 const char STR_V_BN_GE_V_CH[] PROGMEM = {"V_BN <= V_CH? "};
 const char STR_V_BN_LE_V_BL[] PROGMEM = {"V_BN <= V_BL? "};
-const char STR_HAVE_SOURCE[] = PROGMEM = {"HAVE SOURCE? "};
+const char STR_HAVE_SOURCE[] PROGMEM = {"HAVE SOURCE? "};
 const char STR_T_CHARGER[] PROGMEM = {"T_CHARGER EXPIRED? "};
 const char STR_YES[] PROGMEM = {"YES\r\n"};
 const char STR_NO[] PROGMEM = {"NO\r\n"};
@@ -137,7 +137,7 @@ const char STR_START[] PROGMEM = {"START "};
 const char STR_READ[] PROGMEM = {"READ "};
 const char STR_NL[] PROGMEM = {"\r\n"};
 
-static inline uart_tx_bool(const char* msg, uint8_t val) {
+static inline void uart_tx_bool(const char* msg, uint8_t val) {
 	uart_tx_str(msg);
 	if (val)
 		uart_tx_str(STR_YES);
@@ -199,7 +199,7 @@ static void discharge_check() {
 	/* Decide when we should do our next check */
 #ifdef DEBUG
 	uart_tx_str(STR_DIS); uart_tx_str(STR_CHK);
-	uart_tx_bool(V_BN_GE_V_H, v_bn_adc >= V_H_ADC);
+	uart_tx_bool(STR_V_BN_GE_V_H, v_bn_adc >= V_H_ADC);
 #endif
 	if (v_bn_adc >= V_H_ADC)
 		t_charger = T_LF_TICKS;
