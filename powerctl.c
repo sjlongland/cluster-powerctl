@@ -106,13 +106,25 @@ static volatile uint16_t t_adc = 0;
  */
 static volatile uint16_t t_led = 0;
 
-/*! Fan kick-start timeout */
+/*!
+ * Fan kick-start timeout
+ */
 static volatile uint8_t t_fan = 0;
 
 /*!
  * Charger timeout
  */
 static volatile uint8_t t_charger = T_LF_S;
+
+/*!
+ * Charger warning timeout
+ */
+static volatile uint8_t t_cwarn = 0;
+
+/*!
+ * Are we presently in a warning state?
+ */
+static volatile uint8_t charger_warning = 0;
 
 /* Debug messages */
 #ifdef DEBUG
@@ -254,12 +266,17 @@ static void charge_check() {
 		/* We must stop now! */
 		select_src(SRC_NONE);
 		charger_state = STATE_DIS_CHECK;
+		charger_warning = 0;
+		t_cwarn = 0;
 		return;
 	}
 
 	if (charge_source == SRC_NONE) {
 		/* Not yet charging, switch to primary source */
 		select_src(SRC_SOLAR);
+		/* As we have just started charging, reset warning timer */
+		charger_warning = 0;
+		t_cwarn = T_CWARN_S;
 	} else if (v_bn_adc <= v_bl_adc) {
 		/* Check for high voltage threshold, are we there yet? */
 #ifdef DEBUG
@@ -269,11 +286,22 @@ static void charge_check() {
 			/* We are done now */
 			select_src(SRC_NONE);
 			charger_state = STATE_DIS_CHECK;
+			charger_warning = 0;
 			return;
-		} else {
-			/* Situation not improving, switch sources */
+		} else if (charger_warning && (!t_cwarn)) {
+			/* Situation still not improving, switch sources */
 			select_src(SRC_ALT);
+			/* Reset our warning timer */
+			t_cwarn = T_CWARN_S;
+		} else if (!t_cwarn) {
+			/* Not in warning state, enter warning */
+			charger_warning = 1;
+			t_cwarn = T_CWARN_S;
 		}
+	} else {
+		/* Things are improving, reset warning if set. */
+		charger_warning = 0;
+		t_cwarn = 0;
 	}
 
 	v_bl_adc = v_bn_adc;
@@ -350,6 +378,8 @@ int main(void) {
 			t_second = TIMER_FREQ;
 			if (t_charger)
 				t_charger--;
+			if (t_cwarn)
+				t_cwarn--;
 		}
 
 		if (t_adc)
@@ -377,9 +407,7 @@ int main(void) {
 				LED_PORT &= ~LED_BATT_GOOD;
 			}
 
-			if ((charger_state == STATE_CHG_WAIT) &&
-					(v_bn_adc <= v_bl_adc)) {
-				/* We should be charging! */
+			if (charger_warning) {
 				LED_PORT |= LED_WARNING;
 			} else {
 				LED_PORT &= ~LED_WARNING;
