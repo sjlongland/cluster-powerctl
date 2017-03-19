@@ -161,6 +161,31 @@ static inline void uart_tx_bool(const char* msg, uint8_t val) {
 #endif
 
 /*!
+ * Enter charger warning state.  This indicates that the battery
+ * *should* be charging, but isn't due to insufficient input current from
+ * the charger.
+ */
+static inline void enter_warning() {
+	if (charger_warning)
+		LED_PORT |= LED_WARNING;
+	else
+		charger_warning = 1;
+
+	/* Reset our timer */
+	t_cwarn = T_CWARN_S;
+}
+
+/*!
+ * Leave the charger warning state.  This indicates the charger has left
+ * the charging state or the battery has begun charging.
+ */
+static inline void exit_warning() {
+	charger_warning = 0;
+	t_cwarn = 0;
+	LED_PORT &= ~LED_WARNING;
+}
+
+/*!
  * Switch between chargers.  This is does a "break-before-make" switchover
  * of charging sources to switch from mains to solar, solar to mains, or to
  * switch from charging to discharging mode.  It expressly forbids turning
@@ -168,7 +193,7 @@ static inline void uart_tx_bool(const char* msg, uint8_t val) {
  *
  * Added is the ability to just alternate between sources.
  */
-void select_src(uint8_t src) {
+static void select_src(uint8_t src) {
 	if (src == SRC_ALT) {
 		if (charge_source == SRC_SOLAR)
 			src = SRC_MAINS;
@@ -275,8 +300,7 @@ static void charge_check() {
 		/* Not yet charging, switch to primary source */
 		select_src(SRC_SOLAR);
 		/* As we have just started charging, reset warning timer */
-		charger_warning = 0;
-		t_cwarn = T_CWARN_S;
+		exit_warning();
 	} else if (v_bn_adc <= v_bl_adc) {
 		/* Check for high voltage threshold, are we there yet? */
 #ifdef DEBUG
@@ -285,23 +309,22 @@ static void charge_check() {
 		if (v_bn_adc >= V_H_ADC) {
 			/* We are done now */
 			select_src(SRC_NONE);
-			charger_state = STATE_DIS_CHECK;
-			charger_warning = 0;
+			exit_warning();
 			return;
-		} else if (charger_warning && (!t_cwarn)) {
-			/* Situation still not improving, switch sources */
-			select_src(SRC_ALT);
-			/* Reset our warning timer */
-			t_cwarn = T_CWARN_S;
 		} else if (!t_cwarn) {
-			/* Not in warning state, enter warning */
-			charger_warning = 1;
-			t_cwarn = T_CWARN_S;
+			if (charger_warning) {
+				/*
+				 * Situation still not improving,
+				 * switch sources.
+				 */
+				select_src(SRC_ALT);
+			}
+			/* Reset our warning timer */
+			enter_warning();
 		}
-	} else {
+	} else if (!t_cwarn) {
 		/* Things are improving, reset warning if set. */
-		charger_warning = 0;
-		t_cwarn = 0;
+		exit_warning();
 	}
 
 	v_bl_adc = v_bn_adc;
@@ -317,10 +340,14 @@ static void charge_wait() {
 		/* Expire timer */
 		t_charger = 0;
 
-	if (v_bn_adc > v_bl_adc) {
-		/* Things are improving, so kill the warning */
-		charger_warning = 0;
-		t_cwarn = 0;
+	if (!t_cwarn) {
+		if (v_bn_adc > v_bl_adc) {
+			/* Things are improving, so kill the warning */
+			exit_warning();
+		} else {
+			/* Not improving, and timer is expired */
+			enter_warning();
+		}
 	}
 
 #ifdef DEBUG
@@ -411,12 +438,6 @@ int main(void) {
 				/* Battery is critically high */
 				LED_PORT ^= LED_BATT_HIGH;
 				LED_PORT &= ~LED_BATT_GOOD;
-			}
-
-			if (charger_warning) {
-				LED_PORT |= LED_WARNING;
-			} else {
-				LED_PORT &= ~LED_WARNING;
 			}
 
 			if (temp_adc < TEMP_MIN) {
