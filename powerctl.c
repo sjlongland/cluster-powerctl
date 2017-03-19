@@ -42,6 +42,7 @@
 #define V_H_ADC		ADC_READ(V_H_MV)
 #define V_L_ADC		ADC_READ(V_L_MV)
 #define V_CL_ADC	ADC_READ(V_CL_MV)
+#define V_DELTA_ADC	ADC_READ(V_DELTA_MV)
 
 /* --- Timeouts --- */
 #define T_LED_TICKS	TIMER_TICKS(T_LED_MS)
@@ -301,7 +302,7 @@ static void charge_check() {
 		select_src(SRC_SOLAR);
 		/* As we have just started charging, reset warning timer */
 		exit_warning();
-	} else if (v_bn_adc <= v_bl_adc) {
+	} else if (v_bn_adc <= (v_bl_adc + V_DELTA_MV)) {
 		/* Check for high voltage threshold, are we there yet? */
 #ifdef DEBUG
 		uart_tx_bool(STR_V_BN_GE_V_H, v_bn_adc >= V_H_ADC);
