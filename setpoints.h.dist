@@ -94,4 +94,9 @@
  */
 #define T_LF_S		(15)
 
+/*!
+ * How long before we consider a lack of voltage increase a warning?
+ */
+#define T_CWARN_S	(10)
+
 #endif
