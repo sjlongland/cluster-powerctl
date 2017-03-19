@@ -340,16 +340,6 @@ static void charge_wait() {
 		/* Expire timer */
 		t_charger = 0;
 
-	if (!t_cwarn) {
-		if (v_bn_adc > v_bl_adc) {
-			/* Things are improving, so kill the warning */
-			exit_warning();
-		} else {
-			/* Not improving, and timer is expired */
-			enter_warning();
-		}
-	}
-
 #ifdef DEBUG
 	uart_tx_bool(STR_T_CHARGER, !t_charger);
 #endif
