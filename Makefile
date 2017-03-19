@@ -57,7 +57,7 @@ setpoints.h: setpoints.h.dist
 		echo "Existing $@ found.  Please compare this file with"; \
 		echo "$^ to check for any new definitions and merge as"; \
 		echo "required."; \
-		diff -u $^ $@
+		diff -u $^ $@; \
 		exit 1; \
 	fi
 	cp $^ $@
