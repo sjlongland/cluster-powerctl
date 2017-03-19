@@ -87,12 +87,12 @@
 /*!
  * High frequency polling period in seconds.
  */
-#define T_HF_S		(60)
+#define T_HF_S		(15)
 
 /*!
  * Low frequency polling period in seconds.
  */
-#define T_LF_S		(15)
+#define T_LF_S		(60)
 
 /*!
  * How long before we consider a lack of voltage increase a warning?
