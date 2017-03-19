@@ -302,7 +302,7 @@ static void charge_check() {
 		select_src(SRC_SOLAR);
 		/* As we have just started charging, reset warning timer */
 		exit_warning();
-	} else if (v_bn_adc <= (v_bl_adc + V_DELTA_MV)) {
+	} else if (v_bn_adc <= (v_bl_adc + V_DELTA_ADC)) {
 		/* Check for high voltage threshold, are we there yet? */
 #ifdef DEBUG
 		uart_tx_bool(STR_V_BN_GE_V_H, v_bn_adc >= V_H_ADC);
