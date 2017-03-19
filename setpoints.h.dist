@@ -37,7 +37,7 @@
  * Temperature ranges and fan PWM settings
  */
 #define TEMP_MIN	(270 << 6)	/*!< ~20°C, approx ADC reading */
-#define TEMP_MAX	(300 << 6)	/*!< ~30°C, approx ADC reading */
+#define TEMP_MAX	(350 << 6)	/*!< ~30°C, approx ADC reading */
 #define FAN_PWM_MIN	(88)		/*!< Minimum PWM value */
 #define FAN_PWM_MAX	(255)		/*!< Maximum PWM value */
 
@@ -67,7 +67,7 @@
  * High battery voltage.  If we reach this voltage and the charger
  * stops, just switch to discharge mode, consider the job done.
  */
-#define V_H_MV		(14600)
+#define V_H_MV		(14000)
 
 /*!
  * Low battery voltage.  If the voltage dips to or below this level, we
@@ -87,7 +87,7 @@
  * the battery to have increased by before we consider flagging a
  * warning.
  */
-#define V_DELTA_MV	(250)
+#define V_DELTA_MV	(50)
 
 /* --- Timeouts --- */
 
