@@ -50,7 +50,10 @@ powerctl.elf: powerctl.o uart.o
 powerctl.o: board.h setpoints.h
 uart.o: uartcfg.h uart.h
 setpoints.h: setpoints.h.dist
-	@if [ -f $@ ]; then \
+	@if [ -f $@ ] ; then \
+		if cmp $^ $@ ; then \
+			exec touch $@; \
+		fi; \
 		echo "Existing $@ found.  Please compare this file with"; \
 		echo "$^ to check for any new definitions and merge as"; \
 		echo "required."; \
