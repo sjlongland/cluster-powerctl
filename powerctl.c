@@ -252,7 +252,6 @@ static void charge_check() {
 	/* Critically high voltage check */
 	if (v_bn_adc >= V_CH_ADC) {
 		/* We must stop now! */
-		LED_PORT &= ~LED_WARNING;
 		select_src(SRC_NONE);
 		charger_state = STATE_DIS_CHECK;
 		return;
@@ -268,16 +267,12 @@ static void charge_check() {
 #endif
 		if (v_bn_adc >= V_H_ADC) {
 			/* We are done now */
-			LED_PORT &= ~LED_WARNING;
 			select_src(SRC_NONE);
 			charger_state = STATE_DIS_CHECK;
 			return;
 		} else {
 			/* Situation not improving, switch sources */
 			select_src(SRC_ALT);
-
-			/* Show a warning on the LEDs */
-			LED_PORT |= LED_WARNING;
 		}
 	}
 
@@ -380,6 +375,14 @@ int main(void) {
 				/* Battery is critically high */
 				LED_PORT ^= LED_BATT_HIGH;
 				LED_PORT &= ~LED_BATT_GOOD;
+			}
+
+			if ((charger_state == STATE_CHG_WAIT) &&
+					(v_bn_adc <= v_bl_adc)) {
+				/* We should be charging! */
+				LED_PORT |= LED_WARNING;
+			} else {
+				LED_PORT &= ~LED_WARNING;
 			}
 
 			if (temp_adc < TEMP_MIN) {
