@@ -82,6 +82,13 @@
  */
 #define V_CL_MV		(11800)
 
+/*!
+ * Battery minimum charge step.  This is the amount of charge we expect
+ * the battery to have increased by before we consider flagging a
+ * warning.
+ */
+#define V_DELTA_MV	(250)
+
 /* --- Timeouts --- */
 
 /*!
