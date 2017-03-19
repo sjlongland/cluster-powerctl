@@ -317,6 +317,12 @@ static void charge_wait() {
 		/* Expire timer */
 		t_charger = 0;
 
+	if (v_bn_adc > v_bl_adc) {
+		/* Things are improving, so kill the warning */
+		charger_warning = 0;
+		t_cwarn = 0;
+	}
+
 #ifdef DEBUG
 	uart_tx_bool(STR_T_CHARGER, !t_charger);
 #endif
