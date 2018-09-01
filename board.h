@@ -22,15 +22,15 @@
 /* LEDs */
 #define LED_TEMP_LOW		(1 << 7)
 #define LED_TEMP_HIGH		(1 << 6)
-#define LED_BATT_HIGH		(1 << 5)
-#define LED_WARNING		(1 << 4)
+#define LED_BATT_FLT		(1 << 5)
+#define LED_BATT_CHG		(1 << 4)
 #define LED_BATT_GOOD		(1 << 3)
 #define LED_PORT		PORTA
 #define LED_PORT_DDR_REG	DDRA
 #define LED_PORT_DDR_VAL	( LED_TEMP_LOW \
 				| LED_TEMP_HIGH \
-				| LED_BATT_HIGH \
-				| LED_WARNING \
+				| LED_BATT_FLT \
+				| LED_BATT_CHG \
 				| LED_BATT_GOOD )
 
 /* MOSFETs */

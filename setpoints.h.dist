@@ -28,11 +28,6 @@
  */
 #define T_ADC_MS 	(250)
 
-/*!
- * How long before we change LED states?  Milliseconds.
- */
-#define T_LED_MS	(150)
-
 /*
  * Temperature ranges and fan PWM settings
  */
@@ -58,52 +53,28 @@
 /* --- Thresholds --- */
 
 /*!
- * Critically high battery voltage.  Exceeding this voltage could damage
- * the battery or the equipment downstream of it.
- */
-#define V_CH_MV		(15500)
-
-/*!
  * High battery voltage.  If we reach this voltage and the charger
  * stops, just switch to discharge mode, consider the job done.
  */
-#define V_H_MV		(14000)
+#define V_H_MV		(14400)
 
 /*!
  * Low battery voltage.  If the voltage dips to or below this level, we
  * should turn the charger on.
  */
-#define V_L_MV		(13800)
+#define V_L_MV		(12400)
 
 /*!
- * Critically low battery voltage.  If we reach this level, we need to
- * urgently turn the charger on and need to be ready to switch sources
- * in a hurry if the chosen source isn't charging.
+ * Solar minimum voltage.  If the solar is below this threshold, we
+ * consider it too low to reliably charge the system.
  */
-#define V_CL_MV		(11800)
-
-/*!
- * Battery minimum charge step.  This is the amount of charge we expect
- * the battery to have increased by before we consider flagging a
- * warning.
- */
-#define V_DELTA_MV	(50)
+#define V_SOL_MIN_MV	(18000)
 
 /* --- Timeouts --- */
 
 /*!
- * High frequency polling period in seconds.
+ * How long do we remain on the mains charger after reaching V_H_MV?
  */
-#define T_HF_S		(15)
-
-/*!
- * Low frequency polling period in seconds.
- */
-#define T_LF_S		(60)
-
-/*!
- * How long before we consider a lack of voltage increase a warning?
- */
-#define T_CWARN_S	(10)
+#define T_FLOAT_S	(3600)
 
 #endif
