@@ -200,7 +200,7 @@ static void init_check(void) {
  * Checks whilst running on solar
  */
 static void solar_check(void) {
-	if (v_bat_adc < V_L_ADC) {
+	if ((v_bat_adc < V_L_ADC) || (v_sol_adc < V_SOL_MIN_ADC)) {
 		/* Move to mains power */
 		enter_mains_chg();
 		return;
