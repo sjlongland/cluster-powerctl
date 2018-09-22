@@ -46,9 +46,8 @@ clean:
 	$(CC) $(LDFLAGS) -o $@ $^
 	$(SIZE) -d $@
 
-powerctl.elf: powerctl.o uart.o
+powerctl.elf: powerctl.o
 powerctl.o: board.h setpoints.h
-uart.o: uartcfg.h uart.h
 setpoints.h: setpoints.h.dist
 	@if [ -f $@ ] ; then \
 		if cmp $^ $@ ; then \

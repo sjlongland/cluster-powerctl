@@ -3,11 +3,6 @@
 #include <stdint.h>
 #include <avr/pgmspace.h>
 
-#ifdef DEBUG
-/*! If enabled, the warning LED doubles as UART Tx pin */
-#include "uart.h"
-#endif
-
 #include "board.h"
 #include "setpoints.h"
 
@@ -118,40 +113,6 @@ static volatile uint8_t hal_state = 0;
  * LED blink state
  */
 static volatile uint8_t led_blink = 0;
-
-/* Debug messages */
-#ifdef DEBUG
-const char STR_INIT[] PROGMEM = {"INIT "};
-const char STR_SELECT_SRC[] PROGMEM = {"SOURCE="};
-const char STR_SRC_NONE[] PROGMEM = {"NONE"};
-const char STR_SRC_SOLAR[] PROGMEM = {"SOLAR"};
-const char STR_SRC_MAINS[] PROGMEM = {"MAINS"};
-const char STR_DIS[] PROGMEM = {"\r\nDISCHARGE "};
-const char STR_CHG[] PROGMEM = {"\r\nCHARGE "};
-const char STR_CHK[] PROGMEM = {"CHECK\r\n"};
-const char STR_WAIT[] PROGMEM = {"WAIT\r\n"};
-const char STR_V_BN_GE_V_H[] PROGMEM = {"V_BN >= V_H? "};
-const char STR_V_BN_GT_V_L[] PROGMEM = {"V_BN > V_L? "};
-const char STR_V_BN_LE_V_CL[] PROGMEM = {"V_BN <= V_CL? "};
-const char STR_V_BN_GE_V_CH[] PROGMEM = {"V_BN <= V_CH? "};
-const char STR_V_BN_LE_V_BL[] PROGMEM = {"V_BN <= V_BL? "};
-const char STR_HAVE_SOURCE[] PROGMEM = {"HAVE SOURCE? "};
-const char STR_T_CHARGER[] PROGMEM = {"T_CHARGER EXPIRED? "};
-const char STR_YES[] PROGMEM = {"YES\r\n"};
-const char STR_NO[] PROGMEM = {"NO\r\n"};
-const char STR_ADC[] PROGMEM = {"ADC "};
-const char STR_START[] PROGMEM = {"START "};
-const char STR_READ[] PROGMEM = {"READ "};
-const char STR_NL[] PROGMEM = {"\r\n"};
-
-static inline void uart_tx_bool(const char* msg, uint8_t val) {
-	uart_tx_str(msg);
-	if (val)
-		uart_tx_str(STR_YES);
-	else
-		uart_tx_str(STR_NO);
-}
-#endif
 
 /*!
  * Switch to charging from mains power.
@@ -336,14 +297,7 @@ int main(void) {
 		| (1 << ADPS1)
 		| (1 << ADPS0);
 
-	/* Configure UART */
 	sei();
-#ifdef DEBUG
-	uart_init();
-	uart_tx_str(STR_INIT);
-	uart_tx_hex_byte(MCUSR);
-	uart_tx_str(STR_NL);
-#endif
 	MCUSR = 0;
 	while(1) {
 		/* One second passed, tick down the 1-second timers. */
@@ -478,9 +432,6 @@ int main(void) {
 }
 
 ISR(TIM1_COMPA_vect) {
-#ifdef DEBUG
-	uart_tick();
-#endif
 	/* One-second timer for longer events */
 	if (t_second)
 		t_second--;
