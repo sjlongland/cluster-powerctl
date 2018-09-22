@@ -62,7 +62,7 @@
  * Low battery voltage.  If the voltage dips to or below this level, we
  * should turn the charger on.
  */
-#define V_L_MV		(12800)
+#define V_L_MV		(12600)
 
 /*!
  * Solar minimum voltage.  If the solar is below this threshold, we
@@ -75,6 +75,6 @@
 /*!
  * How long do we remain on the mains charger after reaching V_H_MV?
  */
-#define T_FLOAT_S	(3600)
+#define T_FLOAT_S	(1800)
 
 #endif
