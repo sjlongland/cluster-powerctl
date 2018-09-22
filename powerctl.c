@@ -259,6 +259,160 @@ static void mains_float_check(void) {
 }
 
 /*!
+ * Check the state of the solar input, and update the output state
+ * accordingly.
+ */
+static void adc_check_solar(void) {
+	/*
+	 * The "SOLAR" FET is no longer fitted, so this is more
+	 * an indication of whether we consider solar to be
+	 * "good enough".  In short, it's just controlling the
+	 * LED where the MOSFET was now.
+	 */
+	if (v_sol_adc < V_SOL_MIN_ADC)
+		FET_PORT |= FET_SOLAR;
+	else
+		FET_PORT &= ~FET_SOLAR;
+}
+
+/*!
+ * Check the state of the temperature sensor and the fan.  Adjust
+ * motor PWM and LED outputs as required.
+ */
+static void adc_check_temp(void) {
+	/* Temperature LED and Fan control */
+	if (t_fan) {
+		/* Kick-start mode */
+		OCR0A = FAN_PWM_MAX;
+	} else if (temp_adc > TEMP_MAX) {
+		/* We're at the maximum temperature, FULL SPEED! */
+		OCR0A = FAN_PWM_MAX;
+		led_blink &= (LED_TEMP_HIGH | LED_TEMP_LOW);
+		LED_PORT &= ~LED_TEMP_LOW;
+		LED_PORT |= LED_TEMP_HIGH;
+	} else if (temp_adc > TEMP_MIN) {
+		/* Scale fan speed linearly with temperature */
+		uint8_t pwm = (((temp_adc - TEMP_MIN)
+					* FAN_PWM_MAX)
+				/ (TEMP_MAX - TEMP_MIN));
+
+		LED_PORT &= ~LED_TEMP_HIGH;
+		if (OCR0A < FAN_PWM_MIN) {
+			/* Enter kick-start mode */
+			t_fan = T_FAN_S;
+			led_blink |= LED_TEMP_LOW;
+		} else {
+			led_blink &= ~LED_TEMP_LOW;
+			LED_PORT |= LED_TEMP_LOW;
+
+			if (pwm > FAN_PWM_MIN) {
+				OCR0A = pwm;
+			} else {
+				OCR0A = FAN_PWM_MIN;
+			}
+		}
+	} else {
+		/* Turn fans off completely. */
+		OCR0A = 0;
+		led_blink &= (LED_TEMP_HIGH | LED_TEMP_LOW);
+		LED_PORT &= (LED_TEMP_HIGH | LED_TEMP_LOW);
+	}
+}
+
+/*!
+ * Check the battery voltage and update the battery LEDs accordingly.
+ */
+static void adc_check_batt(void) {
+	/* Battery state LED control */
+	if (v_bat_adc <= V_CL_ADC) {
+		/* Battery is critically low */
+		led_blink |= LED_BATT_GOOD;
+	} else if (v_bat_adc <= V_L_ADC) {
+		/* Battery is low */
+		led_blink &= ~LED_BATT_GOOD;
+		LED_PORT &= ~LED_BATT_GOOD;
+	} else {
+		led_blink &= ~LED_BATT_GOOD;
+		LED_PORT |= LED_BATT_GOOD;
+	}
+}
+
+/*!
+ * Check to see if a second has elapsed, if it has, tick down each of
+ * the one-second resolution timers.
+ */
+static void loop_second_tasks(void) {
+	if (!t_second) {
+		/* One second passed, tick down the 1-second timers. */
+		t_second = TIMER_FREQ;
+
+		if (t_batt)
+			t_batt--;
+
+		if (t_fan)
+			t_fan--;
+	}
+}
+
+/*!
+ * Check to see if our ADC state machine has advanced,  If so,
+ * check the state of all our ADC-dependent inputs.
+ */
+static void loop_adc_tasks(void) {
+	if (!t_adc) {
+		t_adc = T_ADC_TICKS;
+		ADCSRA |= (1 << ADEN) | (1 << ADSC);
+
+		while(ADCSRA & (1 << ADEN));
+
+		adc_check_solar();
+		adc_check_temp();
+		adc_check_batt();
+
+		/* Charger control */
+		switch (charger_state) {
+		case STATE_INIT:
+			init_check();
+			break;
+		case STATE_SOLAR:
+			solar_check();
+			break;
+		case STATE_MAINS_CHG:
+			mains_chg_check();
+			break;
+		case STATE_MAINS_FLT:
+			mains_float_check();
+			break;
+		default:
+			charger_state = STATE_INIT;
+		}
+	}
+}
+
+/*!
+ * Check to see if our LED control timer has elapsed.  If so
+ * blink the LEDs that have been selected for blinking.
+ */
+static void loop_led_tasks(void) {
+	if (!t_led) {
+		/*
+		 * Decide whether we're turning blinking LEDs on
+		 * or off.  One bit keeps all blinking LEDs in phase.
+		 */
+		hal_state ^= HAL_STATE_LED_BLINK_POL;
+
+		/* Apply that state to all selected LEDs */
+		if (hal_state & HAL_STATE_LED_BLINK_POL)
+			LED_PORT |= led_blink;
+		else
+			LED_PORT &= ~led_blink;
+
+		/* Reset timer */
+		t_led = T_LED_TICKS;
+	}
+}
+
+/*!
  * Main entrypoint
  */
 int main(void) {
@@ -297,136 +451,15 @@ int main(void) {
 		| (1 << ADPS1)
 		| (1 << ADPS0);
 
+	/* Start interrupts */
 	sei();
 	MCUSR = 0;
+
+	/* Enter core loop */
 	while(1) {
-		/* One second passed, tick down the 1-second timers. */
-		if (!t_second) {
-			t_second = TIMER_FREQ;
-
-			if (t_batt)
-				t_batt--;
-
-			if (t_fan)
-				t_fan--;
-		}
-
-		if (!t_adc) {
-			t_adc = T_ADC_TICKS;
-			ADCSRA |= (1 << ADEN) | (1 << ADSC);
-
-			while(ADCSRA & (1 << ADEN));
-
-			/* Temperature LED control */
-			if (!t_fan) {
-				if (temp_adc < TEMP_MIN) {
-					LED_PORT |= LED_TEMP_LOW;
-					LED_PORT &= ~LED_TEMP_HIGH;
-				} else if (temp_adc < TEMP_MAX) {
-					LED_PORT |= (LED_TEMP_LOW | LED_TEMP_HIGH);
-				} else {
-					LED_PORT &= ~LED_TEMP_LOW;
-					LED_PORT |= LED_TEMP_HIGH;
-				}
-			}
-
-			/*
-			 * The "SOLAR" FET is no longer fitted, so this is more
-			 * an indication of whether we consider solar to be
-			 * "good enough".  In short, it's just controlling the
-			 * LED where the MOSFET was now.
-			 */
-			if (v_sol_adc < V_SOL_MIN_ADC)
-				FET_PORT |= FET_SOLAR;
-			else
-				FET_PORT &= ~FET_SOLAR;
-
-			/* Temperature LED and Fan control */
-			if (t_fan) {
-				/* Kick-start mode */
-				OCR0A = FAN_PWM_MAX;
-			} else if (temp_adc > TEMP_MAX) {
-				/* We're at the maximum temperature, FULL SPEED! */
-				OCR0A = FAN_PWM_MAX;
-				led_blink &= (LED_TEMP_HIGH | LED_TEMP_LOW);
-				LED_PORT &= ~LED_TEMP_LOW;
-				LED_PORT |= LED_TEMP_HIGH;
-			} else if (temp_adc > TEMP_MIN) {
-				/* Scale fan speed linearly with temperature */
-				uint8_t pwm = (((temp_adc - TEMP_MIN)
-							* FAN_PWM_MAX)
-						/ (TEMP_MAX - TEMP_MIN));
-
-				LED_PORT &= ~LED_TEMP_HIGH;
-				if (OCR0A < FAN_PWM_MIN) {
-					/* Enter kick-start mode */
-					t_fan = T_FAN_S;
-					led_blink |= LED_TEMP_LOW;
-				} else {
-					led_blink &= ~LED_TEMP_LOW;
-					LED_PORT |= LED_TEMP_LOW;
-
-					if (pwm > FAN_PWM_MIN) {
-						OCR0A = pwm;
-					} else {
-						OCR0A = FAN_PWM_MIN;
-					}
-				}
-			} else {
-				/* Turn fans off completely. */
-				OCR0A = 0;
-				led_blink &= (LED_TEMP_HIGH | LED_TEMP_LOW);
-				LED_PORT &= (LED_TEMP_HIGH | LED_TEMP_LOW);
-			}
-
-			/* Battery state LED control */
-			if (v_bat_adc <= V_CL_ADC) {
-				/* Battery is critically low */
-				led_blink |= LED_BATT_GOOD;
-			} else if (v_bat_adc <= V_L_ADC) {
-				/* Battery is low */
-				led_blink &= ~LED_BATT_GOOD;
-				LED_PORT &= ~LED_BATT_GOOD;
-			} else {
-				led_blink &= ~LED_BATT_GOOD;
-				LED_PORT |= LED_BATT_GOOD;
-			}
-
-			/* Charger control */
-			switch (charger_state) {
-			case STATE_INIT:
-				init_check();
-				break;
-			case STATE_SOLAR:
-				solar_check();
-				break;
-			case STATE_MAINS_CHG:
-				mains_chg_check();
-				break;
-			case STATE_MAINS_FLT:
-				mains_float_check();
-				break;
-			default:
-				charger_state = STATE_INIT;
-			}
-		}
-
-		if (!t_led) {
-			/*
-			 * Decide whether we're turning blinking LEDs on
-			 * or off.  One bit keeps all blinking LEDs in phase.
-			 */
-			hal_state ^= HAL_STATE_LED_BLINK_POL;
-
-			/* Apply that state to all selected LEDs */
-			if (hal_state & HAL_STATE_LED_BLINK_POL)
-				LED_PORT |= led_blink;
-			else
-				LED_PORT &= ~led_blink;
-
-			/* Reset timer */
-			t_led = T_LED_TICKS;
-		}
+		loop_second_tasks();
+		loop_adc_tasks();
+		loop_led_tasks();
 	}
 	return 0;
 }
@@ -436,6 +469,7 @@ ISR(TIM1_COMPA_vect) {
 	if (t_second)
 		t_second--;
 
+	/* ADC tick events */
 	if (t_adc)
 		t_adc--;
 }
