@@ -40,6 +40,7 @@
 /* --- Thresholds --- */
 #define V_H_ADC		ADC_READ(V_H_MV)
 #define V_L_ADC		ADC_READ(V_L_MV)
+#define V_CL_ADC	ADC_READ(V_CL_MV)
 #define V_SOL_MIN_ADC	ADC_READ(V_SOL_MIN_MV)
 
 /* --- Timeouts --- */
@@ -140,6 +141,9 @@ static inline void uart_tx_bool(const char* msg, uint8_t val) {
  * Switch to charging from mains power.
  */
 static void enter_mains_chg(void) {
+	/* Reset timer */
+	t_batt = T_CHARGE_S;
+
 	/* Enable mains power */
 	FET_PORT &= ~FET_MAINS;
 
@@ -156,7 +160,7 @@ static void enter_mains_chg(void) {
  */
 static void enter_mains_float(void) {
 	/* Reset timer */
-	t_float = T_FLOAT_S;
+	t_batt = T_FLOAT_S;
 
 	/* Indicate via LEDs */
 	LED_PORT &= ~LED_BATT_CHG;
@@ -188,7 +192,12 @@ static void init_check(void) {
 	if (!adc_checked)
 		return;
 
-	if ((v_bat_adc < V_L_ADC) || (v_sol_adc < V_SOL_MIN_ADC))
+	if (
+			/* Battery is low */
+			(v_bat_adc < V_L_ADC)
+			/* Solar voltage is low */
+			|| (v_sol_adc < V_SOL_MIN_ADC)
+	)
 		/* Battery/solar is low, begin charging */
 		enter_mains_chg();
 	else
@@ -200,7 +209,17 @@ static void init_check(void) {
  * Checks whilst running on solar
  */
 static void solar_check(void) {
-	if ((v_bat_adc < V_L_ADC) || (v_sol_adc < V_SOL_MIN_ADC)) {
+	if (v_bat_adc > V_L_ADC) {
+		/* Battery is above low threshold, reset low timer */
+		t_batt = T_LOW_S;
+	} else if (
+			/* Battery is critically low */
+			(v_bat_adc < V_CL_ADC)
+			/* Battery is low for >T_LOW_S seconds */
+			|| ((!t_batt) && (v_bat_adc < V_L_ADC))
+			/* Solar voltage is low */
+			|| (v_sol_adc < V_SOL_MIN_ADC)
+	) {
 		/* Move to mains power */
 		enter_mains_chg();
 		return;
@@ -211,7 +230,12 @@ static void solar_check(void) {
  * Checks whilst charging from mains
  */
 static void mains_chg_check(void) {
-	if (v_bat_adc >= V_H_ADC) {
+	if (
+			/* Charger has been active for T_CHARGE_S seconds */
+			(!t_batt)
+			/* Battery has reached the floating voltage */
+			&& (v_bat_adc >= V_H_ADC)
+	) {
 		/* We've reached the float voltage */
 		enter_mains_float();
 		return;
@@ -226,7 +250,12 @@ static void mains_float_check(void) {
 		/* We've regressed, go back to charging state! */
 		enter_mains_chg();
 		return;
-	} else if ((!t_float) && (v_sol_adc >= V_SOL_MIN_ADC)) {
+	} else if (
+			/* Battery is high for ≥T_FLOAT_S seconds */
+			(!t_batt)
+			/* Solar voltage is high */
+			&& (v_sol_adc >= V_SOL_MIN_ADC)
+	) {
 		/* Solar can take it from here */
 		enter_solar();
 	}
@@ -284,8 +313,9 @@ int main(void) {
 		/* One second passed, tick down the 1-second timers. */
 		if (!t_second) {
 			t_second = TIMER_FREQ;
-			if (t_float)
-				t_float--;
+
+			if (t_batt)
+				t_batt--;
 		}
 
 		if (!t_adc) {

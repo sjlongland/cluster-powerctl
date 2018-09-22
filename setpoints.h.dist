@@ -60,9 +60,16 @@
 
 /*!
  * Low battery voltage.  If the voltage dips to or below this level, we
- * should turn the charger on.
+ * should turn the charger on if it remains below this level for T_LOW_S
+ * seconds.
  */
-#define V_L_MV		(12600)
+#define V_L_MV		(12800)
+
+/*!
+ * Critical Low battery voltage.  If the voltage dips to or below this
+ * level, we should turn the charger on *immediately*, ignore all timeouts.
+ */
+#define V_CL_MV		(12200)
 
 /*!
  * Solar minimum voltage.  If the solar is below this threshold, we
@@ -73,8 +80,20 @@
 /* --- Timeouts --- */
 
 /*!
+ * How long do we remain in the charge state?
+ */
+#define T_CHARGE_S	(900)
+
+/*!
  * How long do we remain on the mains charger after reaching V_H_MV?
  */
-#define T_FLOAT_S	(1800)
+#define T_FLOAT_S	(900)
+
+/*!
+ * How long do we remain on the solar charger after dropping below V_L_MV?
+ * (If we drop below V_CL_MV, go straight to mains charger regardless of
+ * timer.)
+ */
+#define T_LOW_S		(3600)
 
 #endif
