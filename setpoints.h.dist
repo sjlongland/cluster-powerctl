@@ -96,4 +96,9 @@
  */
 #define T_LOW_S		(3600)
 
+/*!
+ * LED blink interval in milliseconds.
+ */
+#define T_LED_MS	(250)
+
 #endif
