@@ -75,7 +75,7 @@
  * Solar minimum voltage.  If the solar is below this threshold, we
  * consider it too low to reliably charge the system.
  */
-#define V_SOL_MIN_MV	(14000)
+#define V_SOL_MIN_MV	(10000)
 
 /* --- Timeouts --- */
 
