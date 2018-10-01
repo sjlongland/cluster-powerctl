@@ -249,9 +249,7 @@ static void mains_float_check(void) {
 		return;
 	} else if (
 			/* Battery is high for ≥T_FLOAT_S seconds */
-			(!t_batt)
-			/* Solar voltage is high */
-			&& (v_sol_adc >= V_SOL_MIN_ADC)
+			!t_batt
 	) {
 		/* Solar can take it from here */
 		enter_solar();
