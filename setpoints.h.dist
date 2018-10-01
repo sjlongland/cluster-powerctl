@@ -63,7 +63,7 @@
  * should turn the charger on if it remains below this level for T_LOW_S
  * seconds.
  */
-#define V_L_MV		(12800)
+#define V_L_MV		(12750)
 
 /*!
  * Critical Low battery voltage.  If the voltage dips to or below this
@@ -75,7 +75,7 @@
  * Solar minimum voltage.  If the solar is below this threshold, we
  * consider it too low to reliably charge the system.
  */
-#define V_SOL_MIN_MV	(10000)
+#define V_SOL_MIN_MV	(4000)
 
 /* --- Timeouts --- */
 
